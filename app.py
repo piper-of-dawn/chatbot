@@ -1,74 +1,72 @@
 import streamlit as st
-from gpt4all import GPT4All
+from llama_cpp import Llama
 
 # Configure Streamlit page
 st.set_page_config(
     page_title="LOCAL GPT",
     page_icon="🤖",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded",
 )
 
-# Customize Streamlit theme
-st.markdown("""
-<style>
-
-:root {
-  --primary-color: #8B4513;  /* Saddle brown */
-  --background-color: #F4ECD8;  /* Soft sepia background */
-  --text-color: #5D4037;  /* Dark brown text */
-  --font-family: 'Georgia', serif;
-}
-
-.stApp {
-    background-color: var(--background-color);
-    color: var(--text-color);
-    font-family: var(--font-family);
-}
-
-[data-testid="stHeader"] {
-    background-color: rgba(244, 236, 216, 0.7);
-}
-
-[data-testid="stTextArea"] textarea {
-    background-color: #FAEBD7;
-    color: var(--text-color);
-    font-family: var(--font-family);
-}
-
-[data-testid="stButton"] button {
-    border: 2px solid var(--primary-color);
-    background-color: transparent;
-}
-
-[data-testid="stButton"] button:hover {
-    transform: scale(1.1);
-    color: #FFF8DC;
-    font-family: var(--font-family);
-}
-            
-h1,p, ul li, h2, h3, h4, h5 {
-    color: var(--primary-color);
-    font-family: var(--font-family);
-}
-
-            
-            .stApp, textarea {
-    caret-color: var(--primary-color) !important;
-}
-           
-</style>
-             
-""", unsafe_allow_html=True)
-
 # Path to the downloaded model
-PATH = "C:/llm/lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/"
-model_path = f"{PATH}/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+model_path = "C:/llm/lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
-# Load the GPT4All model 
-gpt_model = GPT4All(model_name=model_path, device="gpu", allow_download=False, verbose=True)
+# Load the Llama model
+llm = Llama(model_path=model_path)
+
+# Sidebar for parameter configuration
+# Sidebar for parameter configuration
+st.sidebar.header("Model Parameters")
+
+temperature = st.sidebar.slider(
+    "Temperature", 
+    min_value=0.0, 
+    max_value=2.0, 
+    value=0.7, 
+    step=0.1,
+    help="Controls how random or creative the responses are."
+)
+
+max_tokens = st.sidebar.number_input(
+    "Max Tokens", 
+    min_value=1, 
+    max_value=1024, 
+    value=1024, 
+    step=64,
+    help="Sets the maximum length of the response."
+)
+
+top_p = st.sidebar.slider(
+    "Top-p (Nucleus Sampling)", 
+    min_value=0.0, 
+    max_value=1.0, 
+    value=0.9, 
+    step=0.05,
+    help="Keeps responses focused by limiting token choices to the top cumulative probability."
+)
+
+frequency_penalty = st.sidebar.slider(
+    "Frequency Penalty", 
+    min_value=0.0, 
+    max_value=2.0, 
+    value=0.0, 
+    step=0.1,
+    help="Discourages repetition of words already used in the response."
+)
+
+presence_penalty = st.sidebar.slider(
+    "Presence Penalty", 
+    min_value=0.0, 
+    max_value=2.0, 
+    value=0.0, 
+    step=0.1,
+    help="Encourages the model to bring up new topics or ideas."
+)
+
 
 # Streamlit app setup
 st.title("LOCAL GPT")
+
 st.write("""🚨 AI Info Alert! 🚨
 
 Think of me like your enthusiastic but slightly unreliable GPS:
@@ -79,14 +77,35 @@ Think of me like your enthusiastic but slightly unreliable GPS:
          
 Proceed with a pinch of skepticism! 🕵️‍♀️🤖
 """)
-# Display an image
-st.image("meme.webp", caption="AI Humor", width=200)
-# User input
-user_input = st.text_area("Enter your question here:")
+# User input and response generation
+user_input = st.text_area(
+    "Enter your question here:",
+    placeholder="Type your question and press Ctrl+Enter to get the answer...",
+    key="user_input",
+)
+
+
+
 
 if st.button("Get Answer"):
-    if user_input:        
-        response = gpt_model.generate(user_input, max_tokens=512, streaming=True)
+    if user_input:
         st.write("### Answer:")
-        st.write_stream(response)
-            # placeholder.text(answer)  # Use `text` to ensure it stays on one line
+        answer = ""
+        placeholder = st.empty()
+
+        response = llm(
+            user_input,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            stop=["Q:", "\n\n"],
+            stream=True,
+        )
+        
+        for line in response:
+            if "choices" in line and line["choices"]:
+                token = line["choices"][0].get("text", "")
+                answer += token
+                placeholder.write(answer)
